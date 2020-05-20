@@ -1,0 +1,28 @@
+Package: bbe2020
+Title: Network Visualization of AntiPredator Behavior
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Emily", "Messer", email = "emily.j.e.messer@gmail.com", role = "aut"),
+    person("Brittney", "White", email = "bawhite@utexas.edu", role = "aut"),
+    person("Briana", "Sealey", email = "basealey@utexas.edu", role = "cre"))
+Description: This package collapses a matrix of similarities and converts it into
+    a format that can be read in igraph or visNetwork and plotted into a network 
+    visualization.
+Depends: R (>= 3.5)
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.0
+Imports: 
+    reshape2,
+    igraph,
+    visNetwork,
+    tibble,
+    readr,
+    dplyr,
+    stats
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

@@ -1,0 +1,205 @@
+---
+title: "Network Visualization"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Network Visualization}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+### Objectives
+The objective of this module is to provide an overview to utilizing network analysis to visualize and analyze interaction, connected, or similarity data. Specifically, we present 1. Tools to modify a data matrix to generate network diagrams, 2. Applying various aesthetics to visNetwork diagrams, and 3. Generate Wilcoxon Test statistics make comparisons across groups.
+
+### Preliminaries
+```{r setup, warning=FALSE, message=FALSE}
+library(readr) # to enable tidying of data
+library(dplyr) #""
+library(tibble) #""
+library(stats) #""
+library(reshape2) # to use with melt function to convert matrix to objects igraph can plot
+library(igraph) # to make an igraph object ie. network visualization of matrix values
+library(visNetwork) # to make your igraph object prettier using visNetwork
+library(bbe2020) # adds functionality to melt by converting a matrix generated in other software or elsewhere and converting to a form easily used by igraph
+```
+
+### Introduce dataset 
+A group of snakes were exposed to the presence of two "simulated" predators (i.e. two treatments), one with a simulated potential aerial "attack" (represented by a black t-shirt) and another with a simulated tactile "attack" (represented by a snake hook touch). A matrix was generated using Pearson correlation coefficient to calculate the behavior similarity indices between all snake's antipredator head movement behavior.  
+
+```{r, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# read in data matrix for aerial treatment
+aerial <- read_csv("blacktreatments_heads2020f.csv", col_names=TRUE)
+# store the first column, which should be "names" for later use
+aerialnames <- as.character(aerial$names)
+# read in data matrix for tactile treatment 
+tactile <- read_csv("tactiletreatments_heads2020f.csv", col_names=TRUE)
+# store the first column, which should be "names" for later use
+tactilenames <- as.character(tactile$names)
+## Please Note: you must ensure that your dataframe has a first column named "names" that refers to the labels for the unique row and column data points 
+```
+
+### Using the Matrices, develop specific questions:
+How similar did individual snakes move their heads in response to an aerial "attack"?
+How similar did individual snakes move their heads in response to a tactile "attack"?
+How does snake centrality of similarity compare between the aerial and tactile treatments? 
+
+### Background
+Networks are made up of two essential components, 'nodes' (represented by symbols) and ‘edges’ (represented by lines between the nodes). These lines typically indicate an interaction between the nodes. Usually, in the context of social networks, the nodes are individuals and the edges are some measured interaction (Croft, James & Krause, 2008). Social network visualizations are called sociograms and illustrate a graphical representation of the data (presented as nodes and edges). Network visualizations can be used to visualize many forms of interaction profile similarity or adjacency matrices in biological systems (Bass et al. 2013).   
+
+### Tidying Data Matrix for iGraph Network analysis using bbe2020
+```{r}
+# melt_matrix_4_ig_visV <- function(x){
+#   colnames(x) <- c("names", 1:nrow(x))
+#   x <- select(x, -names) %>%
+#   as.matrix()
+#   x[lower.tri(x, diag=TRUE)] <- NA
+#   x <- melt(x)
+#   x <- setNames(x, c('ind1', 'ind2', 'values'))
+#   x <- filter(x, !is.na(values))
+#   return(x)
+# }
+#meltaerial <- melt_matrix_4_ig_visV(aerial)
+# melting data matrix for aerial treatment
+#melttactile <- melt_matrix_4_ig_visV(tactile)
+```
+
+```{r}
+#Using "melteme" function, designed to melt the matrices
+meltaerial <- meltme(aerial)
+head(meltaerial, 5)
+# melting data matirx for tactile treatment 
+melttactile <- meltme(tactile)
+#melttactile <- melt_matrix_4_ig_visV(tactile)
+head(melttactile, 5)
+```
+
+### Data Visualization
+Here we specifically visualize an individual snake's antipredator behavior divided by all individual's antipredator behavior towards the same type of predator represented as a ratio (or similarity index) in a sociogram. Each sociogram visualizes the similarity of antipredator behavior for either predator among the snakes. Edges represent the similarity index. 
+
+```{r}
+# iGraph network plot of aerial treatment
+#aerialplot <- graph_from_data_frame(meltaerial, directed = FALSE, vertices = NULL)
+aerialplot <- igraphme(meltaerial)
+E(aerialplot)$weight <- meltaerial$values
+# print iGraph using a sphere layout 
+plot(aerialplot, vertex.label = NA, layout = layout_on_sphere, main="Aerial treatment")
+
+# iGraph network plot of tactile treatment
+#tactileplot <- graph_from_data_frame(melttactile, directed = FALSE, vertices = NULL)
+tactileplot <- igraphme(melttactile)
+E(tactileplot)$weight <- melttactile$values
+# print iGraph using a force-directed layout (positions the nodes so that the edges have similar lengths and there are as few crossing edges as possible)
+plot(tactileplot, vertex.label = NA, layout = layout_with_fr, main="Tactile treatment")
+# converting igraph to visnetwork for aerial treatment
+aerialdata <- toVisNetworkData(aerialplot)
+## copy column "weight" to new column "value" in list "edges"
+aerialdata$edges$width <- 20*aerialdata$edges$value 
+## line color
+aerialdata$edges$color <- "gray" 
+## node labels
+##refer to "aerialnames" to do this
+aerialdata$nodes$label <- aerialnames
+## print plot, zoom in for detail!
+visNetwork(nodes = aerialdata$nodes, edges = aerialdata$edges, height = "500px") %>%
+visIgraphLayout(layout = "layout_with_sugiyama")
+
+# converting igraph to visnetwork for tactile treatment
+tactiledata <- toVisNetworkData(tactileplot)
+## copy column "weight" to new column "value" in list "edges"
+tactiledata$edges$width <- 20*tactiledata$edges$value 
+## line color
+tactiledata$edges$color <- "gray" 
+## print plot
+visNetwork(nodes = tactiledata$nodes, edges = tactiledata$edges, height = "500px") %>%
+visIgraphLayout(layout = "layout_with_sugiyama")
+```
+
+### Calculate eigenvalue centrality of aerial and tactile treatments. 
+```{r}
+# aerial treatment 
+centralityaerialplot <- evcent(aerialplot)$vector
+centralityaerialplot
+# tactile treatment 
+centralitytactileplot <- evcent(tactileplot)$vector
+centralitytactileplot
+```
+
+### Calculate centrality of similarity index between an aerial and tactile treatments. 
+To determine if there is any significant difference between the predator responses of our snakes towards the two artificially simulated predators (aerial and tactile) we compared the snakes scores of centrality (connectedness). Centrality is a network statistic which is a measure of being well-connected.
+```{r}
+# First, we need to combine our centrality measures for both the aerial and tactical treatment conditions into one dataframe
+# names and centraility score for aerial treatment condition
+Acent <- bind_cols(name = aerialnames, number = centralityaerialplot)
+# names and centriality score for tactile treatment condition
+Tcent <- bind_cols(name = tactilenames, number = centralitytactileplot)
+# naming the different centrality measures for each treatment condition
+acondition = 'aerial'
+tcondition = 'tactile'
+Acent <- mutate(Acent, "condition" = paste(acondition))
+Acent
+Tcent <- mutate(Tcent, "condition" = paste(tcondition))
+Tcent
+# Joining aerial and tactile treatments with their centralities and snakenames into one tibble
+snake_centrality <- full_join(Tcent, Acent, by = "name")
+snake_centrality
+snake_centrality <- as.data.frame(snake_centrality)
+head(snake_centrality, 5)
+## Re-naming the columns after cmbining the columns 
+snake_centrality <- snake_centrality %>%
+  rename(
+    centrality_t = number.x,
+    centrality_a = number.y
+  )
+head(snake_centrality, 5)
+## running the wilcoxon analysis on our updated dataframe to compare snake centrality in the tactile and aerial treatment conditions  
+wilcox_centrality <- wilcox.test(snake_centrality$centrality_t, snake_centrality$centrality_a, paired=TRUE)
+wilcox_centrality
+```
+
+
+### Another Example Using Association to Demonstrate Aesthetic Changes 
+In this new example, we showcase a selection of different aesthetic changes you can utilize in your visualization of network data based on monkey association patterns. 
+```{r}
+# Read in another dataset, here we use monkeys 
+Monkeys <- read_csv("EM_monkey.csv", col_names=TRUE)
+Sname <- c(Monkeys$name)
+Sno <- as.numeric(1:nrow(Monkeys))
+Monkeys <- meltme(Monkeys)
+#Monkeys <- melt_matrix_4_ig_visV(Monkeys)
+head(Monkeys, 5)
+# This is how you can replace numbers with names 
+Source <- bind_cols(name = Sname, number = Sno)
+Source
+final <- inner_join(Monkeys, Source, by = c("ind1" = "number"))
+final <- inner_join(final, Source, by = c("ind2" = "number"))
+final <- select(final, name.x, name.y, values)
+head(final, 5)
+# Visualization of Monkey interactions 
+Monkeysp <- graph_from_data_frame(Monkeys, directed = FALSE, vertices = NULL)
+plot(aerialplot, vertex.label = NA, layout = layout_with_fr, main="Aerial treatment") 
+datam <- toVisNetworkData(Monkeysp)
+visNetwork(nodes = datam$nodes, edges = datam$edges, height = "500px") %>%
+visIgraphLayout(layout = "layout_with_sugiyama")
+# New monkey graph to work out the centrality of monkeys. 
+# igraph
+monk = graph.data.frame(final[,c('name.x','name.y')], directed = FALSE, vertices = NULL)
+E(monk)$weight = final$values
+plot(monk, vertex.label = NA, layout = layout_with_fr, main="Monkeys") 
+# working out centrality 
+centrality <- evcent(monk)$vector
+head(centrality) 
+````
+
+### Inferring Results 
+With respect to the antipredator behavior of snake head displays, individual snakes typically behaved significantly different between aerial and tactile treatments, as expected. 
+
+### Concept Overview 
+* Networks are made up of two essential components, 'nodes' (represented by symbols) and ‘edges’ (represented by  lines between the nodes). These lines typically indicate an interaction between the nodes
+* Using the {bbe2020()} to:
+    - `meltme()` function to convert matrix data into a dataframe for igraph manipulation
+
+    - `igraphme()` function to convert a melted matrix into an igraph format for network visualization &      analysis
+
+* Using {igraph}: graph_from_data_frame() and {visNetwork}: toVisNetworkData() to generate sociograms 
+* Aesthetic changes in visNetwork sociograms, such as `edge$color` , `edge$width`
+* Eigenvector centrality statistics in igraph evcent()$vector
+* The `wilcox.test()` function is a non-parametric statistical test which compares two paired groups 
